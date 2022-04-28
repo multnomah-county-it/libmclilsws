@@ -148,31 +148,32 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
     }
 
     /**
-     * Use an email to retrieve a user barcode (ID)
+     * Use an email, telephone or other value to retrieve a user barcode (ID)
+     * and then see if we can authenticate with that barcode and the user password.
      *
-     * Should return the user's barcode. On failure,it should throw an exception. 
-     * If the error was caused by the user entering the wrong
-     * email, or if more than one email was retrieved, a \SimpleSAML\Error\Error('WRONGUSERPASS') 
-     * should be thrown.
+     * Should return a patron key or 0. On error,it should throw an exception. 
      *
      * Note that both the username and the password are UTF-8 encoded.
      *
-     * @param string $username  The username the user wrote, which should be an email address.
-     * @param string $password  The password the user wrote.
-     * @return string $patron_key The user's patron key.
+     * @param string $token  The session token returned by ILSWS.
+     * @param string $index  The Symphony index to search in for the user.
+     * @param string $search  The username the user entered.
+     * @param string $password  The password the user entered.
+     * @return string $barcode The user's barcode (ID).
      */
-    protected function get_barcode($token, $email)
+    protected function authenticate_search($token, $index, $search, $password)
     {
         $barcode = '';
         assert(is_string($token));
-        assert(is_string($email));
+        assert(is_string($search));
+        assert(is_string($password));
         assert(is_string($barcode));
- 
+
         try {
 
             $url = "https://$this->hostname:$this->port/$this->webapp";
             $action = "/user/patron/search";
-            $post_data = array("q=EMAIL:$email", 'rw=1', 'ct=10', 'j=AND', 'includeFields=barcode');
+            $post_data = array("q=$index:$search", 'rw=1', 'ct=10', 'j=AND', 'includeFields=barcode');
             $params = implode($post_data, '&');
 
             $headers = [
@@ -191,41 +192,45 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
             $json = curl_exec($ch);
-            Logger::debug('mclilsws:' . $this->authId . ': email query response JSON: ' . $json);
+            Logger::debug('mclilsws:' . $this->authId . ": $index query response JSON: " . $json);
 
             $response = json_decode($json, true);
             
             curl_close($ch);
 
         } catch (\Exception $e) {
-            throw new \Exception('mclilsws:' . $this->authId . ': - ILSWS email query failed: ' . $e->getMessage());
+            throw new \Exception('mclilsws:' . $this->authId . ": - ILSWS $index query failed: " . $e->getMessage());
         }
 
         /**
-         * This stupid and painful exercise is due to Symphony Web Services' tendencey to return nulls for records
-         * that have been deleted and to count them in the results. So, you can't trust the totalResults count and you 
-         * have to loop through all possible result objects.
+         * Symphony Web Services' with return nulls for records that have been deleted 
+         * but still count them in the results. So, you can't trust the totalResults count 
+         * match the number of actual records returned, and you have to loop through all 
+         * possible result objects to see if there is data.
          */
+        $patron_key = 0;
         $count = 0;
         if ( $response['totalResults'] > 0 ) {
             for ($i = 0; $i <= $response['totalResults'] - 1; $i++) {
                 if ( isset($response['result'][$i]['fields']['barcode']) ) {
                     $barcode = $response['result'][$i]['fields']['barcode'];
-                    $count++;
+                    $patron_key = $this->authenticate_barcode($token, $barcode, $password);
+                    if ( $patron_key ) {
+                        $count++;
+                    }
                 }
             }
         }
 
-        # If more than one user is sharing this email address, then we can't match on it.
         if ( $count > 1 ) {
-            $barcode = '';
+            $patron_key = 0;
         }
 
-        if ( $barcode ) {
-            Logger::debug('mclilsws:' . $this->authId . ': Email query found barcode: ' . $barcode);
+        if ( $patron_key ) {
+            Logger::debug('mclilsws:' . $this->authId . ": $search query found barcode: " . $barcode);
         }
 
-        return $barcode;
+        return $patron_key;
     }
 
     /**
@@ -241,7 +246,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      * @param string $password  The password the user wrote.
      * @return string $patron_key The user's patron key.
      */
-    protected function authenticate_by_barcode($token, $username, $password)
+    protected function authenticate_barcode($token, $username, $password)
     {
         assert(is_string($token));
         assert(is_string($username));
@@ -312,19 +317,28 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
         }
         assert(is_string($token));
  
-        // We support authentication by barcode and pin or email address and pin
+        // We support authentication by barcode and pin, telephone and pin, or email address and pin
         $patron_key = 0;
+        $barcode = '';
+
         if ( preg_match("/\@/", $username) ) {
 
-
-            # This must be an email
-            $username = $this->get_barcode($token, $username);
-            if ( ! $username ) {
-                throw new Error\Error('WRONGUSERPASS');
-            }
+            # The username looks like an email
+            $patron_key = $this->authenticate_search($token, 'EMAIL', $username, $password);
         }
-        $patron_key = $this->authenticate_by_barcode($token, $username, $password);
-        
+
+        if ( ! $patron_key ) {
+
+            # Assume the username is a barcode
+            $patron_key = $this->authenticate_barcode($token, $username, $password);
+        }
+
+        if ( ! $patron_key ) {
+
+            # Maybe the username is a telephone number?
+            $patron_key = $this->authenticate_search($token, 'PHONE', $username, $password);
+        }
+
         $attributes = [];
         if ( $patron_key ) {
 
@@ -397,6 +411,8 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                                     $attributes['state'][] = $parts[1];
                                 } elseif ( $i['fields']['code']['key'] == 'ZIP' ) {
                                     $attributes['zip'][] = $i['fields']['data'];
+                                } elseif ( $i['fields']['code']['key'] == 'PHONE' ) {
+                                    $attributes['telephone'][] = $i['fields']['data'];
                                 }
                             }
                         }
