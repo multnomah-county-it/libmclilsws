@@ -333,7 +333,22 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             // Patron is authenticated. Now try to retrieve patron attributes.
             Logger::info('mclilsws:' . $this->authId . ': Authenticated patron ' . $patron_key);
 
-            $include_fields = ['lastName','firstName','barcode','library','profile','language','lastActivityDate','address1','category01','category02','category03'];
+            $include_fields = [
+                'lastName',
+                'firstName',
+                'middleName',
+                'barcode',
+                'library',
+                'profile',
+                'language',
+                'lastActivityDate',
+                'address1',
+                'category01',
+                'category02',
+                'category03',
+                'standing'
+            ];
+
             $include_str = implode(',', $include_fields);
 
             try {
@@ -376,6 +391,12 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                             foreach ($response['fields']['address1'] as &$i) {
                                 if ( $i['fields']['code']['key'] == 'EMAIL' ) {
                                     $attributes['email'][] = $i['fields']['data'];
+                                } elseif ( $i['fields']['code']['key'] == 'CITY/STATE' ) {
+                                    $parts = preg_split("/,\s*/", $i['fields']['data']);
+                                    $attributes['city'][] = $parts[0];
+                                    $attributes['state'][] = $parts[1];
+                                } elseif ( $i['fields']['code']['key'] == 'ZIP' ) {
+                                    $attributes['zip'][] = $i['fields']['data'];
                                 }
                             }
                         }
@@ -388,8 +409,23 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                     }
                 }
             }
+            // Generate a displayName
             if ( isset($response['fields']['lastName']) && isset($response['fields']['firstName']) ) {
                 $attributes['displayName'][] = $response['fields']['firstName'] . ' ' . $response['fields']['lastName'];
+            }
+            // Generate a commonName
+            if ( isset($response['fields']['lastName']) && isset($response['fields']['firstName']) ) {
+                if ( isset($response['fields']['middleName']) ) {
+                    $attributes['commonName'][] = $response['fields']['lastName'] 
+                      . ', ' 
+                      . $response['fields']['firstName'] 
+                      . ' ' 
+                      . $response['fields']['middleName'];
+                } else {
+                    $attributes['commonName'][] = $response['fields']['lastName'] 
+                      . ', ' 
+                      . $response['fields']['firstName'];
+                }
             }
 
             Logger::info('mclilsws:' . $this->authId . ': Attributes: ' . implode(',', array_keys($attributes)));
