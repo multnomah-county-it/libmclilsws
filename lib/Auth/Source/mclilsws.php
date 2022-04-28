@@ -219,11 +219,11 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                         $count++;
                     }
                 }
+                if ( $count > 1 ) {
+                    $patron_key = 0;
+                    break;
+                }
             }
-        }
-
-        if ( $count > 1 ) {
-            $patron_key = 0;
         }
 
         if ( $patron_key ) {
