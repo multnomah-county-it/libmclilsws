@@ -141,7 +141,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             // Obfuscate the password if it's part of the dsn
             $obfuscated_url =  preg_replace('/(password)=(.*?([;]|$))/', '${1}=***', "$url/$action?$params");
 
-            throw new Exception('mclilsws:' . $this->authId . ': - Failed to connect to \'' .  $obfuscated_url . '\': ' . $e->getMessage());
+            throw new Exception('mclilsws:' . $this->authId . ': - Could not connect to ILSWS: \'' .  $obfuscated_url . '\': ' . $e->getMessage());
         }
 
         return $token;
@@ -163,11 +163,10 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      */
     protected function authenticate_search($token, $index, $search, $password)
     {
-        $barcode = '';
         assert(is_string($token));
+        assert(is_string($index));
         assert(is_string($search));
         assert(is_string($password));
-        assert(is_string($barcode));
 
         try {
 
@@ -192,14 +191,14 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
             $json = curl_exec($ch);
-            Logger::debug('mclilsws:' . $this->authId . ": $index query response JSON: " . $json);
+            Logger::debug('mclilsws:' . $this->authId . ': ILSWS search query response JSON: ' . $json);
 
             $response = json_decode($json, true);
             
             curl_close($ch);
 
         } catch (\Exception $e) {
-            throw new \Exception('mclilsws:' . $this->authId . ": - ILSWS $index query failed: " . $e->getMessage());
+            throw new \Exception('mclilsws:' . $this->authId . ': - ILSWS search query failed: ' . $e->getMessage());
         }
 
         /**
@@ -214,6 +213,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             for ($i = 0; $i <= $response['totalResults'] - 1; $i++) {
                 if ( isset($response['result'][$i]['fields']['barcode']) ) {
                     $barcode = $response['result'][$i]['fields']['barcode'];
+                    assert(is_string($barcode));
                     $patron_key = $this->authenticate_barcode($token, $barcode, $password);
                     if ( $patron_key ) {
                         $count++;
@@ -227,7 +227,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
         }
 
         if ( $patron_key ) {
-            Logger::debug('mclilsws:' . $this->authId . ": $search query found barcode: " . $barcode);
+            Logger::debug('mclilsws:' . $this->authId . ': ILSWS search query found barcode: ' . $barcode);
         }
 
         return $patron_key;
@@ -246,17 +246,17 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      * @param string $password  The password the user wrote.
      * @return string $patron_key The user's patron key.
      */
-    protected function authenticate_barcode($token, $username, $password)
+    protected function authenticate_barcode($token, $barcode, $password)
     {
         assert(is_string($token));
-        assert(is_string($username));
+        assert(is_string($barcode));
         assert(is_string($password));
  
         try {
 
             $url = "https://$this->hostname:$this->port/$this->webapp";
             $action = "/user/patron/authenticate";
-            $post_data = json_encode( array('barcode' => $username, 'password' => $password) );
+            $post_data = json_encode( array('barcode' => $barcode, 'password' => $password) );
 
             $headers = [
                 'Content-Type: application/json',
@@ -276,7 +276,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
 
             $json = curl_exec($ch);
-            Logger::debug('mclilsws:' . $this->authId . ': Authentication query response JSON: ' . $json);
+            Logger::debug('mclilsws:' . $this->authId . ': ILSWS authentication query response JSON: ' . $json);
 
             $response = json_decode($json, true);
             
@@ -319,7 +319,6 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
  
         // We support authentication by barcode and pin, telephone and pin, or email address and pin
         $patron_key = 0;
-        $barcode = '';
 
         if ( preg_match("/\@/", $username) ) {
 
