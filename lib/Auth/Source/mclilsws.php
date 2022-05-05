@@ -180,6 +180,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             $action = "/user/patron/search";
             $post_data = array("q=$index:$search", 'rw=1', "ct=$this->max_search_count", 'j=AND', 'includeFields=barcode');
             $params = implode($post_data, '&');
+            Logger::debug('mclilsws:' . $this->authId . ': ILSWS search query: ' . $params);
 
             $headers = [
                 'Content-Type: application/json',
@@ -233,7 +234,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
         }
 
         if ( ! $patron_key ) {
-            Logger::debug('mclilsws:' . $this->authId . ': No barcode found in ILSWS search response');
+            Logger::debug('mclilsws:' . $this->authId . ': ILSWS returned no barcode');
         }
 
         return $patron_key;
@@ -353,7 +354,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             assert(is_string($patron_key));
 
             // Patron is authenticated. Now try to retrieve patron attributes.
-            Logger::info('mclilsws:' . $this->authId . ': Authenticated patron ' . $patron_key);
+            Logger::info('mclilsws:' . $this->authId . ': ILSWS authenticated patron: ' . $patron_key);
 
             $include_fields = [
                 'lastName',
@@ -394,7 +395,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
                 $json = curl_exec($ch);
-                Logger::debug('mclilsws:' . $this->authId . ': Patron attributes: ' . $json);
+                Logger::debug('mclilsws:' . $this->authId . ': ILSWS patron attributes: ' . $json);
 
                 $response = json_decode($json, true);
 
@@ -452,7 +453,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                 }
             }
 
-            Logger::info('mclilsws:' . $this->authId . ': Attributes: ' . implode(',', array_keys($attributes)));
+            Logger::info('mclilsws:' . $this->authId . ': ILSWS attributes returned: ' . implode(',', array_keys($attributes)));
 
         } else {
             throw new Error\Error('WRONGUSERPASS');
