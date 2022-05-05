@@ -226,8 +226,8 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             }
         }
 
-        if ( $patron_key ) {
-            Logger::debug('mclilsws:' . $this->authId . ': ILSWS search query found barcode: ' . $barcode);
+        if ( ! $patron_key ) {
+            Logger::debug('mclilsws:' . $this->authId . ': No barcode found in ILSWS search response');
         }
 
         return $patron_key;
@@ -312,30 +312,26 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
         assert(is_string($password));
 
         $token = $this->connect();
-        if ( ! $token ) {
-            throw new \Exception('mclilsws:' . $this->authID . ': - ILSWS connect failed: ' . $e->getMessage());
-        }
         assert(is_string($token));
  
         // We support authentication by barcode and pin, telephone and pin, or email address and pin
         $patron_key = 0;
 
-        if ( preg_match("/\@/", $username) ) {
+        if ( filter_var($username, FILTER_VALIDATE_EMAIL) ) {
 
             # The username looks like an email
             $patron_key = $this->authenticate_search($token, 'EMAIL', $username, $password);
-        }
 
-        if ( ! $patron_key ) {
+        } elseif ( preg_match("/^\d{6,}$/", $username) ) {
 
             # Assume the username is a barcode
             $patron_key = $this->authenticate_barcode($token, $username, $password);
-        }
 
-        if ( ! $patron_key ) {
+            if ( ! $patron_key ) {
 
-            # Maybe the username is a telephone number?
-            $patron_key = $this->authenticate_search($token, 'PHONE', $username, $password);
+                # Maybe the username is a telephone number?
+                $patron_key = $this->authenticate_search($token, 'PHONE', $username, $password);
+            }
         }
 
         $attributes = [];
