@@ -65,6 +65,11 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
     private $timeout;
 
     /**
+     * The ILSWS max search count
+     */
+    private $max_search_count;
+
+    /**
      * Constructor for this authentication source.
      *
      * @param array $info  Information about this authentication source.
@@ -79,7 +84,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
         parent::__construct($info, $config);
 
         // Make sure that all required parameters are present.
-        foreach (['hostname', 'port', 'username', 'password', 'webapp', 'app_id', 'client_id', 'timeout'] as $param) {
+        foreach (['hostname', 'port', 'username', 'password', 'webapp', 'app_id', 'client_id', 'timeout', 'max_search_count'] as $param) {
             if (!array_key_exists($param, $config)) {
                 throw new Exception('Missing required attribute \''.$param.
                     '\' for authentication source '.$this->authId);
@@ -101,6 +106,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
         $this->app_id = $config['app_id'];
         $this->client_id = $config['client_id'];
         $this->timeout = $config['timeout'];
+        $this->max_search_count = $config['max_search_count'];
     }
 
     /**
@@ -172,7 +178,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
 
             $url = "https://$this->hostname:$this->port/$this->webapp";
             $action = "/user/patron/search";
-            $post_data = array("q=$index:$search", 'rw=1', 'ct=10', 'j=AND', 'includeFields=barcode');
+            $post_data = array("q=$index:$search", 'rw=1', "ct=$this->max_search_count", 'j=AND', 'includeFields=barcode');
             $params = implode($post_data, '&');
 
             $headers = [
@@ -209,7 +215,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
          */
         $patron_key = 0;
         $count = 0;
-        if ( $response['totalResults'] > 0 ) {
+        if ( $response['totalResults'] > 0 && $response['totalResults'] <= $this->max_search_count ) {
             for ($i = 0; $i <= $response['totalResults'] - 1; $i++) {
                 if ( isset($response['result'][$i]['fields']['barcode']) ) {
                     $barcode = $response['result'][$i]['fields']['barcode'];
@@ -251,6 +257,8 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
         assert(is_string($token));
         assert(is_string($barcode));
         assert(is_string($password));
+
+        $patron_key = 0;
  
         try {
 
