@@ -329,9 +329,14 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
 
             if ( ! $patron_key ) {
 
-                # Maybe the username is a telephone number?
+                # Maybe the username is a telephone number without hyphens?
                 $patron_key = $this->authenticate_search($token, 'PHONE', $username, $password);
             }
+
+        } elseif ( preg_match("/^\d{3}\-\d{3}\-\d{4}$/", $username) ) {
+
+            # This looks like a telephone number
+            $patron_key = $this->authenticate_search($token, 'PHONE', $username, $password);
         }
 
         $attributes = [];
