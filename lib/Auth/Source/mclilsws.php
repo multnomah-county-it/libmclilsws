@@ -24,49 +24,31 @@ if (!function_exists('json_decode')) {
 
 class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
 {
-    /**
-     * The ILSWS host we should connect to.
-     */
+    // The ILSWS host we should connect to.
     private $hostname;
 
-    /**
-     * The ILSWS port we should connect on.
-     */
+    // The ILSWS port we should connect on.
     private $port;
 
-    /**
-     * The username we should connect to the database with.
-     */
+    // The username we should connect to the database with.
     private $username;
 
-    /**
-     * The password we should connect to the database with.
-     */
+    // The password we should connect to the database with.
     private $password;
 
-    /**
-     * The ILSWS webapp
-     */
+    // The ILSWS webapp
     private $webapp;
 
-    /**
-     * The ILSWS app_id
-     */
+    // The ILSWS app_id
     private $app_id;
 
-    /**
-     * The ILSWS client_id
-     */
+    // The ILSWS client_id
     private $client_id;
 
-    /**
-     * The ILSWS connection timeout
-     */
+    // The ILSWS connection timeout
     private $timeout;
 
-    /**
-     * The ILSWS max search count
-     */
+    // The ILSWS max search count
     private $max_search_count;
 
     /**
@@ -112,6 +94,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
     /**
      * Connect to ILSWS
      *
+     * @access private
      * @return x-sirs-sessionToken
      */
     private function connect()
@@ -128,16 +111,20 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                 "x-sirs-clientID: $this->client_id"
             ];
 
+            $options = array(
+                CURLOPT_URL              => "$url/$action?$params",
+                CURLOPT_RETURNTRANSFER   => true,
+                CURLOPT_SSL_VERIFYSTATUS => true,
+                CURLOPT_CONNECTTIMEOUT   => $this->timeout,
+                CURLOPT_HTTPHEADER       => $headers,
+                );
+
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, "$url/$action?$params");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYSTATUS, true);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->timeout);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt_array($ch, $options);
 
             $json = curl_exec($ch);
-
             $response = json_decode($json, true);
+
             $token = $response['sessionToken'];
             Logger::debug('mclilsws:' . $this->authId . ': ILSWS session token: ' . $token);
 
@@ -161,11 +148,12 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      *
      * Note that both the username and the password are UTF-8 encoded.
      *
-     * @param string $token  The session token returned by ILSWS.
-     * @param string $index  The Symphony index to search in for the user.
-     * @param string $search  The username the user entered.
-     * @param string $password  The password the user entered.
-     * @return string $barcode The user's barcode (ID).
+     * @access protected
+     * @param  string $token    The session token returned by ILSWS.
+     * @param  string $index    The Symphony index to search in for the user.
+     * @param  string $search   The username the user entered.
+     * @param  string $password The password the user entered.
+     * @return string $barcode  The user's barcode (ID).
      */
     protected function authenticate_search($token, $index, $search, $password)
     {
@@ -188,14 +176,18 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                 "SD-Originating-App-ID: $this->app_id",
                 "x-sirs-clientID: $this->client_id",
                 "x-sirs-sessionToken: $token",
-            ];
+                ];
+
+            $options = array(
+                CURLOPT_URL              => "$url/$action?$params",
+                CURLOPT_RETURNTRANSFER   => true,
+                CURLOPT_SSL_VERIFYSTATUS => true,
+                CURLOPT_CONNECTTIMEOUT   => $this->timeout,
+                CURLOPT_HTTPHEADER       => $headers,
+                );
 
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, "$url/$action?$params");
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYSTATUS, true);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->timeout);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt_array($ch, $options);
 
             $json = curl_exec($ch);
             Logger::debug('mclilsws:' . $this->authId . ': ILSWS search query response JSON: ' . $json);
@@ -249,8 +241,9 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      *
      * Note that both the username and the password are UTF-8 encoded.
      *
-     * @param string $username  The username the user wrote.
-     * @param string $password  The password the user wrote.
+     * @access protected
+     * @param  string $username   The username the user wrote.
+     * @param  string $password   The password the user wrote.
      * @return string $patron_key The user's patron key.
      */
     protected function authenticate_barcode($token, $barcode, $password)
@@ -273,16 +266,20 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                 "SD-Originating-App-ID: $this->app_id",
                 "x-sirs-clientID: $this->client_id",
                 "x-sirs-sessionToken: $token",
-            ];
+                ];
+
+            $options = array(
+                CURLOPT_URL              => "$url/$action",
+                CURLOPT_POST             => true,
+                CURLOPT_RETURNTRANSFER   => true,
+                CURLOPT_SSL_VERIFYSTATUS => true,
+                CURLOPT_CONNECTTIMEOUT   => $this->timeout,
+                CURLOPT_HTTPHEADER       => $headers,
+                CURLOPT_POSTFIELDS       => $post_data,
+                );
 
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, "$url/$action");
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYSTATUS, true);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->timeout);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
+            curl_setopt_array($ch, $options);
 
             $json = curl_exec($ch);
             Logger::debug('mclilsws:' . $this->authId . ': ILSWS authentication query response JSON: ' . $json);
@@ -311,9 +308,10 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      *
      * Note that both the username and the password are UTF-8 encoded.
      *
-     * @param string $username  The username the user wrote.
-     * @param string $password  The password the user wrote.
-     * @return array @attributes Associative array with the users attributes.
+     * @access protected
+     * @param  string $username   The username the user wrote.
+     * @param  string $password   The password the user wrote.
+     * @return array  @attributes Associative array with the users attributes.
      */
     protected function login($username, $password)
     {
@@ -385,14 +383,18 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                     "SD-Originating-App-ID: $this->app_id",
                     "x-sirs-clientID: $this->client_id",
                     "x-sirs-sessionToken: $token",
-                ];
+                    ];
 
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, "$url/$action/$patron_key?includeFields=$include_str");
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYSTATUS, true);
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->timeout);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+		$options = array(
+		    CURLOPT_URL              => "$url/$action/$patron_key?includeFields=$include_str",
+                    CURLOPT_RETURNTRANSFER   => true,
+                    CURLOPT_SSL_VERIFYSTATUS => true,
+                    CURLOPT_CONNECTTIMEOUT   => $this->timeout,
+		    CURLOPT_HTTPHEADER       => $headers,
+		    );
+
+		$ch = curl_init();
+		curl_setopt_array($ch, $options);
 
                 $json = curl_exec($ch);
                 Logger::debug('mclilsws:' . $this->authId . ': ILSWS patron attributes: ' . $json);
@@ -462,3 +464,5 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
         return $attributes;
     }
 }
+
+// EOF
