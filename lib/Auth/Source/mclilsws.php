@@ -54,14 +54,11 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
     /**
      * Constructor for this authentication source.
      *
-     * @param array $info  Information about this authentication source.
+     * @param array $info    Information about this authentication source.
      * @param array $config  Configuration.
      */
     public function __construct($info, $config)
     {
-        assert(is_array($info));
-        assert(is_array($config));
-
         // Call the parent constructor first, as required by the interface
         parent::__construct($info, $config);
 
@@ -157,11 +154,6 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      */
     protected function authenticate_search($token, $index, $search, $password)
     {
-        assert(is_string($token));
-        assert(is_string($index));
-        assert(is_string($search));
-        assert(is_string($password));
-
         try {
 
             $url = "https://$this->hostname:$this->port/$this->webapp";
@@ -248,10 +240,6 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      */
     protected function authenticate_barcode($token, $barcode, $password)
     {
-        assert(is_string($token));
-        assert(is_string($barcode));
-        assert(is_string($password));
-
         $patron_key = 0;
  
         try {
@@ -315,11 +303,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      */
     protected function login($username, $password)
     {
-        assert(is_string($username));
-        assert(is_string($password));
-
         $token = $this->connect();
-        assert(is_string($token));
  
         // We support authentication by barcode and pin, telephone and pin, or email address and pin
         $patron_key = 0;
