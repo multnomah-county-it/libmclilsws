@@ -15,10 +15,10 @@ use SimpleSAML\Logger;
  * @package SimpleSAMLphp
  */
 
-if (!function_exists('curl_init')) {
+if ( ! function_exists('curl_init') ) {
     throw new Exception('MCLILSWS needs the CURL PHP extension.');
 }
-if (!function_exists('json_decode')) {
+if ( ! function_exists('json_decode') ) {
     throw new Exception('MCLILSWS needs the JSON PHP extension.');
 }
 
@@ -57,7 +57,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      * @param array $info    Information about this authentication source.
      * @param array $config  Configuration.
      */
-    public function __construct($info, $config)
+    public function __construct ($info, $config)
     {
         // Call the parent constructor first, as required by the interface
         parent::__construct($info, $config);
@@ -94,45 +94,53 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      * @access private
      * @return x-sirs-sessionToken
      */
-    private function connect()
+    private function connect ()
     {
-        try {
-            $url = "https://$this->hostname:$this->port/$this->webapp";
-            $action = "rest/security/loginUser";
-            $params = "client_id=$this->client_id&login=$this->username&password=$this->password";
+        $url = "https://$this->hostname:$this->port/$this->webapp";
+        $action = "rest/security/loginUser";
+        $params = "client_id=$this->client_id&login=$this->username&password=$this->password";
 
-            $headers = [
-                'Content-Type: application/json',
-                'Accept: application/json',
-                "SD-Originating-App-ID: $this->app_id",
-                "x-sirs-clientID: $this->client_id"
-            ];
+        $headers = [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            "SD-Originating-App-ID: $this->app_id",
+            "x-sirs-clientID: $this->client_id"
+        ];
 
-            $options = array(
-                CURLOPT_URL              => "$url/$action?$params",
-                CURLOPT_RETURNTRANSFER   => true,
-                CURLOPT_SSL_VERIFYSTATUS => true,
-                CURLOPT_CONNECTTIMEOUT   => $this->timeout,
-                CURLOPT_HTTPHEADER       => $headers,
-                );
+        $options = array(
+            CURLOPT_URL              => "$url/$action?$params",
+            CURLOPT_RETURNTRANSFER   => true,
+            CURLOPT_SSL_VERIFYSTATUS => true,
+            CURLOPT_CONNECTTIMEOUT   => $this->timeout,
+	    CURLOPT_HTTPHEADER       => $headers,
+	    );
 
-            $ch = curl_init();
-            curl_setopt_array($ch, $options);
+	// Initialize Curl
+        $ch = curl_init();
+	curl_setopt_array($ch, $options);
 
-            $json = curl_exec($ch);
-            $response = json_decode($json, true);
+	// Execute the query
+	$json = curl_exec($ch);
 
-            $token = $response['sessionToken'];
-            Logger::debug('mclilsws:' . $this->authId . ': ILSWS session token: ' . $token);
+	// Check for errors
+	$http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+	$curl_errno = curl_errno($ch);
 
-            curl_close($ch);
+	curl_close($ch);
 
-        } catch (\Exception $e) {
+	if ( $curl_errno || $http_status >= 400 ) {
+
             // Obfuscate the password if it's part of the dsn
             $obfuscated_url =  preg_replace('/(password)=(.*?([;]|$))/', '${1}=***', "$url/$action?$params");
 
-            throw new Exception('mclilsws:' . $this->authId . ': - Could not connect to ILSWS: \'' .  $obfuscated_url . '\': ' . $e->getMessage());
-        }
+	    Logger::error($this->authId . ": ILSWS connect error (HTTP $http_status, Curl error $curl_errno): " . $obfuscated_url);
+	    throw new Error\Error('AUTHSOURCEERROR');
+	}
+
+        $response = json_decode($json, true);
+	$token = $response['sessionToken'];
+
+        Logger::debug($this->authId . ": ILSWS session token: $token");
 
         return $token;
     }
@@ -152,45 +160,51 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      * @param  string $password The password the user entered.
      * @return string $barcode  The user's barcode (ID).
      */
-    protected function authenticate_search($token, $index, $search, $password)
+    protected function authenticate_search ($token, $index, $search, $password)
     {
-        try {
 
-            $url = "https://$this->hostname:$this->port/$this->webapp";
-            $action = "/user/patron/search";
-            $post_data = array("q=$index:$search", 'rw=1', "ct=$this->max_search_count", 'j=AND', 'includeFields=barcode');
-            $params = implode($post_data, '&');
-            Logger::debug('mclilsws:' . $this->authId . ': ILSWS search query: ' . $params);
+        $url = "https://$this->hostname:$this->port/$this->webapp";
+        $action = "/user/patron/search";
+        $post_data = array("q=$index:$search", 'rw=1', "ct=$this->max_search_count", 'j=AND', 'includeFields=barcode');
+        $params = implode($post_data, '&');
+        Logger::debug($this->authId . ": ILSWS search query: $params");
 
-            $headers = [
-                'Content-Type: application/json',
-                'Accept: application/json',
-                "SD-Originating-App-ID: $this->app_id",
-                "x-sirs-clientID: $this->client_id",
-                "x-sirs-sessionToken: $token",
-                ];
+        $headers = [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            "SD-Originating-App-ID: $this->app_id",
+            "x-sirs-clientID: $this->client_id",
+            "x-sirs-sessionToken: $token",
+            ];
 
-            $options = array(
-                CURLOPT_URL              => "$url/$action?$params",
-                CURLOPT_RETURNTRANSFER   => true,
-                CURLOPT_SSL_VERIFYSTATUS => true,
-                CURLOPT_CONNECTTIMEOUT   => $this->timeout,
-                CURLOPT_HTTPHEADER       => $headers,
-                );
+        $options = array(
+            CURLOPT_URL              => "$url/$action?$params",
+            CURLOPT_RETURNTRANSFER   => true,
+            CURLOPT_SSL_VERIFYSTATUS => true,
+            CURLOPT_CONNECTTIMEOUT   => $this->timeout,
+            CURLOPT_HTTPHEADER       => $headers,
+            );
 
-            $ch = curl_init();
-            curl_setopt_array($ch, $options);
+	// Initialize Curl
+        $ch = curl_init();
+	curl_setopt_array($ch, $options);
 
-            $json = curl_exec($ch);
-            Logger::debug('mclilsws:' . $this->authId . ': ILSWS search query response JSON: ' . $json);
+	// Execute the query
+        $json = curl_exec($ch);
+        Logger::debug($this->authId . ": ILSWS search response JSON: $json");
 
-            $response = json_decode($json, true);
-            
-            curl_close($ch);
+	// Check for errors
+	$http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+	$curl_errno = curl_errno($ch);
 
-        } catch (\Exception $e) {
-            throw new \Exception('mclilsws:' . $this->authId . ': - ILSWS search query failed: ' . $e->getMessage());
+	curl_close($ch);
+
+        if ( $curl_errno || $http_status >= 400 ) {
+	    Logger::error($this->authId . ": ILSWS search failure (HTTP $http_status, Curl error $curl_errno)");
+	    throw new Error\Error('AUTHSOURCEERROR');
         }
+
+	$response = json_decode($json, true);
 
         /**
          * Symphony Web Services' with return nulls for records that have been deleted 
@@ -218,7 +232,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
         }
 
         if ( ! $patron_key ) {
-            Logger::debug('mclilsws:' . $this->authId . ': ILSWS returned no barcode');
+            Logger::debug($this->authId . ': ILSWS returned no barcode');
         }
 
         return $patron_key;
@@ -238,48 +252,51 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      * @param  string $password   The password the user wrote.
      * @return string $patron_key The user's patron key.
      */
-    protected function authenticate_barcode($token, $barcode, $password)
+    protected function authenticate_barcode ($token, $barcode, $password)
     {
         $patron_key = 0;
- 
-        try {
+        $url = "https://$this->hostname:$this->port/$this->webapp";
+        $action = "/user/patron/authenticate";
+        $post_data = json_encode( array('barcode' => $barcode, 'password' => $password) );
 
-            $url = "https://$this->hostname:$this->port/$this->webapp";
-            $action = "/user/patron/authenticate";
-            $post_data = json_encode( array('barcode' => $barcode, 'password' => $password) );
+        $headers = [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            "SD-Originating-App-ID: $this->app_id",
+            "x-sirs-clientID: $this->client_id",
+            "x-sirs-sessionToken: $token",
+            ];
 
-            $headers = [
-                'Content-Type: application/json',
-                'Accept: application/json',
-                "SD-Originating-App-ID: $this->app_id",
-                "x-sirs-clientID: $this->client_id",
-                "x-sirs-sessionToken: $token",
-                ];
+        $options = array(
+            CURLOPT_URL              => "$url/$action",
+            CURLOPT_POST             => true,
+            CURLOPT_RETURNTRANSFER   => true,
+            CURLOPT_SSL_VERIFYSTATUS => true,
+            CURLOPT_CONNECTTIMEOUT   => $this->timeout,
+            CURLOPT_HTTPHEADER       => $headers,
+            CURLOPT_POSTFIELDS       => $post_data,
+            );
 
-            $options = array(
-                CURLOPT_URL              => "$url/$action",
-                CURLOPT_POST             => true,
-                CURLOPT_RETURNTRANSFER   => true,
-                CURLOPT_SSL_VERIFYSTATUS => true,
-                CURLOPT_CONNECTTIMEOUT   => $this->timeout,
-                CURLOPT_HTTPHEADER       => $headers,
-                CURLOPT_POSTFIELDS       => $post_data,
-                );
+	// Initialize Curl query
+        $ch = curl_init();
+	curl_setopt_array($ch, $options);
 
-            $ch = curl_init();
-            curl_setopt_array($ch, $options);
+	// Execute query
+	$json = curl_exec($ch);
+        Logger::debug($this->authId . ": ILSWS authentication response JSON: $json");
 
-            $json = curl_exec($ch);
-            Logger::debug('mclilsws:' . $this->authId . ': ILSWS authentication query response JSON: ' . $json);
+	// Check for errors
+	$http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+	$curl_errno = curl_errno($ch);
 
-            $response = json_decode($json, true);
-            
-            curl_close($ch);
+        curl_close($ch);
 
-        } catch (\Exception $e) {
-            throw new \Exception('mclilsws:' . $this->authId . ': - ILSWS barcode authentication query failed: ' . $e->getMessage());
+        if ( $curl_errno || $http_status >= 400 ) {
+	    Logger::error($this->authId . ": ILSWS barcode authentication failure (HTTP $http_status, Curl error $curl_errno)");
+	    throw new Error\Error('AUTHSOURCEERROR');
         }
 
+	$response = json_decode($json, true);
         if ( isset($response['patronKey']) ) {
             $patron_key = $response['patronKey'];
         }
@@ -301,7 +318,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
      * @param  string $password   The password the user wrote.
      * @return array  @attributes Associative array with the users attributes.
      */
-    protected function login($username, $password)
+    protected function login ($username, $password)
     {
         $token = $this->connect();
  
@@ -313,7 +330,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             # The username looks like an email
             $patron_key = $this->authenticate_search($token, 'EMAIL', $username, $password);
 
-        } elseif ( preg_match("/^\d{6,}$/", $username) ) {
+        } elseif ( preg_match("/^\d{6,14}$/", $username) ) {
 
             # Assume the username is a barcode
             $patron_key = $this->authenticate_barcode($token, $username, $password);
@@ -336,7 +353,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             assert(is_string($patron_key));
 
             // Patron is authenticated. Now try to retrieve patron attributes.
-            Logger::info('mclilsws:' . $this->authId . ': ILSWS authenticated patron: ' . $patron_key);
+            Logger::info($this->authId . ": ILSWS authenticated patron: $patron_key");
 
             $include_fields = [
                 'lastName',
@@ -355,41 +372,45 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             ];
 
             $include_str = implode(',', $include_fields);
+            $url = "https://$this->hostname:$this->port/$this->webapp";
+            $action = "/user/patron/key";
 
-            try {
+            $headers = [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                "SD-Originating-App-ID: $this->app_id",
+                "x-sirs-clientID: $this->client_id",
+                "x-sirs-sessionToken: $token",
+                ];
 
-                $url = "https://$this->hostname:$this->port/$this->webapp";
-                $action = "/user/patron/key";
+	    $options = array(
+	        CURLOPT_URL              => "$url/$action/$patron_key?includeFields=$include_str",
+                CURLOPT_RETURNTRANSFER   => true,
+                CURLOPT_SSL_VERIFYSTATUS => true,
+                CURLOPT_CONNECTTIMEOUT   => $this->timeout,
+		CURLOPT_HTTPHEADER       => $headers,
+		);
 
-                $headers = [
-                    'Content-Type: application/json',
-                    'Accept: application/json',
-                    "SD-Originating-App-ID: $this->app_id",
-                    "x-sirs-clientID: $this->client_id",
-                    "x-sirs-sessionToken: $token",
-                    ];
+	    // Initialize query
+	    $ch = curl_init();
+	    curl_setopt_array($ch, $options);
 
-		$options = array(
-		    CURLOPT_URL              => "$url/$action/$patron_key?includeFields=$include_str",
-                    CURLOPT_RETURNTRANSFER   => true,
-                    CURLOPT_SSL_VERIFYSTATUS => true,
-                    CURLOPT_CONNECTTIMEOUT   => $this->timeout,
-		    CURLOPT_HTTPHEADER       => $headers,
-		    );
+	    // Execute query
+	    $json = curl_exec($ch);
+            Logger::debug($this->authId . ": ILSWS patron attributes: $json");
 
-		$ch = curl_init();
-		curl_setopt_array($ch, $options);
+	    // Check for errors
+	    $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+	    $curl_errno = curl_errno($ch);
 
-                $json = curl_exec($ch);
-                Logger::debug('mclilsws:' . $this->authId . ': ILSWS patron attributes: ' . $json);
+            curl_close($ch);
 
-                $response = json_decode($json, true);
-
-                curl_close($ch);
-
-            } catch (\Exception $e) {
-                throw new \Exception('mclilsws:' . $this->authID . ': - could not retrieve attributes from ILSWS: ' . $e->getMessage());
+            if ( $curl_errno || $http_status >= 400 ) {
+		Logger::error($this->authID . ": ILSWS did not return attributes (HTTP $http_status, Curl error $curl_errno)");
+	        throw new Error\Error('AUTHSOURCEERROR');
             }
+
+	    $response = json_decode($json, true);
 
             // Extract patron attributes from the ILSWS response and assign to $attributes.
             if ( isset($response['key']) ) {
@@ -406,7 +427,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
 				    if ( ! empty($parts[1]) ) {
                                         $attributes['state'][] = $parts[1];
 				    } else {
-                                        $attributes['state'][] = '';
+                                        $attributes['state'][] = 'OR';
                                     }
                                 } elseif ( $i['fields']['code']['key'] == 'ZIP' ) {
                                     $attributes['zip'][] = $i['fields']['data'];
@@ -443,7 +464,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                 }
             }
 
-            Logger::info('mclilsws:' . $this->authId . ': ILSWS attributes returned: ' . implode(',', array_keys($attributes)));
+            Logger::info($this->authId . ': ILSWS attributes returned: ' . implode(',', array_keys($attributes)));
 
         } else {
             throw new Error\Error('WRONGUSERPASS');
