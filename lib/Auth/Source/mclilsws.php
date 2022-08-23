@@ -402,8 +402,12 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                                     $attributes['email'][] = $i['fields']['data'];
                                 } elseif ( $i['fields']['code']['key'] == 'CITY/STATE' ) {
                                     $parts = preg_split("/,\s*/", $i['fields']['data']);
-                                    $attributes['city'][] = $parts[0];
-                                    $attributes['state'][] = $parts[1];
+				    $attributes['city'][] = $parts[0];
+				    if ( ! empty($parts[1]) ) {
+                                        $attributes['state'][] = $parts[1];
+				    } else {
+                                        $attributes['state'][] = '';
+                                    }
                                 } elseif ( $i['fields']['code']['key'] == 'ZIP' ) {
                                     $attributes['zip'][] = $i['fields']['data'];
                                 } elseif ( $i['fields']['code']['key'] == 'PHONE' ) {
