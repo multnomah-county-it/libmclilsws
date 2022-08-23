@@ -214,7 +214,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
          */
         $patron_key = 0;
         $count = 0;
-        if ( defined($response) && $response['totalResults'] > 0 && $response['totalResults'] <= $this->max_search_count ) {
+        if ( $response['totalResults'] > 0 && $response['totalResults'] <= $this->max_search_count ) {
             for ($i = 0; $i <= $response['totalResults'] - 1; $i++) {
                 if ( isset($response['result'][$i]['fields']['barcode']) ) {
                     $barcode = $response['result'][$i]['fields']['barcode'];
@@ -413,7 +413,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
 	    $response = json_decode($json, true);
 
             // Extract patron attributes from the ILSWS response and assign to $attributes.
-            if ( defined($response) && isset($response['key']) ) {
+            if ( isset($response['key']) ) {
                 foreach ( $include_fields as &$field ) {
 
                     if ( $field == 'address1' ) {
