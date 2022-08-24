@@ -64,16 +64,20 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
 
         // Make sure that all required parameters are present.
         foreach (['hostname', 'port', 'username', 'password', 'webapp', 'app_id', 'client_id', 'timeout', 'max_search_count'] as $param) {
-            if (!array_key_exists($param, $config)) {
-                throw new Exception('Missing required attribute \''.$param.
-                    '\' for authentication source '.$this->authId);
+            if ( ! array_key_exists($param, $config) ) {
+                throw new Exception('Missing required attribute \''
+                    . $param 
+                    . '\' for authentication source '
+                    . $this->authId);
             }
 
-            if (!is_string($config[$param])) {
-                throw new Exception('Expected parameter \''.$param.
-                    '\' for authentication source '.$this->authId.
-                    ' to be a string. Instead it was: '.
-                    var_export($config[$param], true));
+            if ( ! is_string($config[$param]) ) {
+                throw new Exception('Expected parameter \''
+                    . $param
+                    . '\' for authentication source '
+                    . $this->authId
+                    . ' to be a string. Instead it was: '
+                    . var_export($config[$param], true));
             }
         }
 
@@ -112,33 +116,32 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             CURLOPT_RETURNTRANSFER   => true,
             CURLOPT_SSL_VERIFYSTATUS => true,
             CURLOPT_CONNECTTIMEOUT   => $this->timeout,
-	    CURLOPT_HTTPHEADER       => $headers,
-	    );
+            CURLOPT_HTTPHEADER       => $headers,
+        );
 
-	// Initialize Curl
+        // Initialize Curl
         $ch = curl_init();
-	curl_setopt_array($ch, $options);
+        curl_setopt_array($ch, $options);
 
-	// Execute the query
-	$json = curl_exec($ch);
+        // Execute the query
+        $json = curl_exec($ch);
 
-	// Check for errors
-	$http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-	$curl_errno = curl_errno($ch);
+        // Check for errors
+        $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_errno = curl_errno($ch);
 
-	curl_close($ch);
+        curl_close($ch);
 
-	if ( $curl_errno || $http_status >= 400 ) {
+        if ( $curl_errno || $http_status >= 400 ) {
 
             // Obfuscate the password if it's part of the dsn
             $obfuscated_url =  preg_replace('/(password)=(.*?([;]|$))/', '${1}=***', "$url/$action?$params");
-
-	    Logger::error($this->authId . ": ILSWS connect error (HTTP $http_status, Curl error $curl_errno): " . $obfuscated_url);
-	    throw new Error\Error('AUTHSOURCEERROR');
-	}
+            Logger::error($this->authId . ": ILSWS connect error (HTTP $http_status, Curl error $curl_errno): " . $obfuscated_url);
+            throw new Exception('ILSWS connect error');
+        }
 
         $response = json_decode($json, true);
-	$token = $response['sessionToken'];
+        $token = $response['sessionToken'];
 
         Logger::debug($this->authId . ": ILSWS session token: $token");
 
@@ -185,26 +188,26 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             CURLOPT_HTTPHEADER       => $headers,
             );
 
-	// Initialize Curl
+        // Initialize Curl
         $ch = curl_init();
-	curl_setopt_array($ch, $options);
+        curl_setopt_array($ch, $options);
 
-	// Execute the query
+        // Execute the query
         $json = curl_exec($ch);
         Logger::debug($this->authId . ": ILSWS search response JSON: $json");
 
-	// Check for errors
-	$http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-	$curl_errno = curl_errno($ch);
+        // Check for errors
+        $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_errno = curl_errno($ch);
 
-	curl_close($ch);
+        curl_close($ch);
 
         if ( $curl_errno || $http_status >= 400 ) {
-	    Logger::error($this->authId . ": ILSWS search failure (HTTP $http_status, Curl error $curl_errno)");
-	    throw new Error\Error('AUTHSOURCEERROR');
+            Logger::error($this->authId . ": ILSWS search failure (HTTP $http_status, Curl error $curl_errno)");
+            throw new Exception('ILSWS search failure');
         }
 
-	$response = json_decode($json, true);
+        $response = json_decode($json, true);
 
         /**
          * Symphony Web Services' with return nulls for records that have been deleted 
@@ -277,26 +280,26 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             CURLOPT_POSTFIELDS       => $post_data,
             );
 
-	// Initialize Curl query
+        // Initialize Curl query
         $ch = curl_init();
-	curl_setopt_array($ch, $options);
+        curl_setopt_array($ch, $options);
 
-	// Execute query
-	$json = curl_exec($ch);
+        // Execute query
+        $json = curl_exec($ch);
         Logger::debug($this->authId . ": ILSWS authentication response JSON: $json");
 
-	// Check for errors
-	$http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-	$curl_errno = curl_errno($ch);
+        // Check for errors
+        $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_errno = curl_errno($ch);
 
         curl_close($ch);
 
         if ( $curl_errno || $http_status >= 400 ) {
-	    Logger::error($this->authId . ": ILSWS barcode authentication failure (HTTP $http_status, Curl error $curl_errno)");
-	    throw new Error\Error('AUTHSOURCEERROR');
+            Logger::error($this->authId . ": ILSWS barcode authentication failure (HTTP $http_status, Curl error $curl_errno)");
+            throw new Exception('ILSWS barcode authentication failure');
         }
 
-	$response = json_decode($json, true);
+        $response = json_decode($json, true);
         if ( isset($response['patronKey']) ) {
             $patron_key = $response['patronKey'];
         }
@@ -383,34 +386,34 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                 "x-sirs-sessionToken: $token",
                 ];
 
-	    $options = array(
-	        CURLOPT_URL              => "$url/$action/$patron_key?includeFields=$include_str",
+            $options = array(
+                CURLOPT_URL              => "$url/$action/$patron_key?includeFields=$include_str",
                 CURLOPT_RETURNTRANSFER   => true,
                 CURLOPT_SSL_VERIFYSTATUS => true,
                 CURLOPT_CONNECTTIMEOUT   => $this->timeout,
-		CURLOPT_HTTPHEADER       => $headers,
-		);
+                CURLOPT_HTTPHEADER       => $headers,
+                );
 
-	    // Initialize query
-	    $ch = curl_init();
-	    curl_setopt_array($ch, $options);
+            // Initialize query
+            $ch = curl_init();
+            curl_setopt_array($ch, $options);
 
-	    // Execute query
-	    $json = curl_exec($ch);
+            // Execute query
+            $json = curl_exec($ch);
             Logger::debug($this->authId . ": ILSWS patron attributes: $json");
 
-	    // Check for errors
-	    $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-	    $curl_errno = curl_errno($ch);
+            // Check for errors
+            $http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curl_errno = curl_errno($ch);
 
             curl_close($ch);
 
             if ( $curl_errno || $http_status >= 400 ) {
-		Logger::error($this->authID . ": ILSWS did not return attributes (HTTP $http_status, Curl error $curl_errno)");
-	        throw new Error\Error('AUTHSOURCEERROR');
+                Logger::error($this->authID . ": ILSWS did not return patron attributes (HTTP $http_status, Curl error $curl_errno)");
+                throw new Exception('ILSWS did not return patron attributes');
             }
 
-	    $response = json_decode($json, true);
+            $response = json_decode($json, true);
 
             // Extract patron attributes from the ILSWS response and assign to $attributes.
             if ( isset($response['key']) ) {
@@ -423,10 +426,10 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
                                     $attributes['email'][] = $i['fields']['data'];
                                 } elseif ( $i['fields']['code']['key'] == 'CITY/STATE' ) {
                                     $parts = preg_split("/,\s*/", $i['fields']['data']);
-				    $attributes['city'][] = $parts[0];
-				    if ( ! empty($parts[1]) ) {
+                                    $attributes['city'][] = $parts[0];
+                                    if ( ! empty($parts[1]) ) {
                                         $attributes['state'][] = $parts[1];
-				    } else {
+                                    } else {
                                         $attributes['state'][] = 'OR';
                                     }
                                 } elseif ( $i['fields']['code']['key'] == 'ZIP' ) {
