@@ -137,7 +137,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
             // Obfuscate the password if it's part of the dsn
             $obfuscated_url =  preg_replace('/(password)=(.*?([;]|$))/', '${1}=***', "$url/$action?$params");
             Logger::error($this->authId . ": ILSWS connect error (HTTP $http_status, Curl error $curl_errno): " . $obfuscated_url);
-            throw new Exception('ILSWS connect error');
+            throw new Exception("ILSWS connect error ($http_status)");
         }
 
         $response = json_decode($json, true);
@@ -204,7 +204,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
 
         if ( $curl_errno || $http_status >= 400 ) {
             Logger::error($this->authId . ": ILSWS search failure (HTTP $http_status, Curl error $curl_errno)");
-            throw new Exception('ILSWS search failure');
+            throw new Exception("ILSWS search failure ($http_status)");
         }
 
         $response = json_decode($json, true);
@@ -294,9 +294,11 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
 
         curl_close($ch);
 
-        if ( $curl_errno || $http_status >= 400 ) {
+        if ( $http_status == 401 ) {
             Logger::error($this->authId . ": ILSWS barcode authentication failure (HTTP $http_status, Curl error $curl_errno)");
-            throw new Exception('ILSWS barcode authentication failure');
+        } elseif ( $curl_errno || $http_status > 401 ) {
+            Logger::error($this->authId . ": ILSWS barcode authentication failure (HTTP $http_status, Curl error $curl_errno)");
+            throw new Exception("ILSWS barcode authentication failure ($http_status)");
         }
 
         $response = json_decode($json, true);
@@ -410,7 +412,7 @@ class mclilsws extends \SimpleSAML\Module\core\Auth\UserPassBase
 
             if ( $curl_errno || $http_status >= 400 ) {
                 Logger::error($this->authID . ": ILSWS did not return patron attributes (HTTP $http_status, Curl error $curl_errno)");
-                throw new Exception('ILSWS did not return patron attributes');
+                throw new Exception("ILSWS did not return patron attributes ($http_status)");
             }
 
             $response = json_decode($json, true);
